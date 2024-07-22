@@ -6,6 +6,8 @@ import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Setter
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
@@ -29,5 +31,8 @@ public class StockOrder {
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private OrderType orderType;
+
+    private LocalDateTime createdAt;
+
 
 }
