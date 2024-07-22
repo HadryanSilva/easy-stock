@@ -1,6 +1,7 @@
 package br.com.hadryan.stock.service.consumer;
 
 import br.com.hadryan.stock.dto.StockDTO;
+import br.com.hadryan.stock.exception.ProductNotRegisteredException;
 import br.com.hadryan.stock.mapper.StockMapper;
 import br.com.hadryan.stock.repository.ProductRepository;
 import br.com.hadryan.stock.repository.StockRepository;
@@ -22,11 +23,15 @@ public class StockConsumer {
 
     @RabbitListener(queues = "${rabbitmq.stock.queue}")
     public void registerStock(StockDTO message) {
-        productRepository.findById(message.getProductId())
-                .orElseThrow(() -> new RuntimeException("Product not found"));
-        var stockToSave = stockMapper.toEntity(message);
-        log.info("Saving stock: '{}'", stockToSave);
-        stockRepository.save(stockToSave);
+        try {
+            productRepository.findById(message.getProductId())
+                    .orElseThrow(ProductNotRegisteredException::new);
+            var stockToSave = stockMapper.toEntity(message);
+            log.info("Saving stock: '{}'", stockToSave);
+            stockRepository.save(stockToSave);
+        } catch (ProductNotRegisteredException e) {
+            log.error("Error registering stock: '{}'", e.getMessage());
+        }
     }
 
 }

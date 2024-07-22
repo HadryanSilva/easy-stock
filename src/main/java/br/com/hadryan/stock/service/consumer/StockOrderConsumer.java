@@ -1,6 +1,8 @@
 package br.com.hadryan.stock.service.consumer;
 
 import br.com.hadryan.stock.dto.StockOrderDTO;
+import br.com.hadryan.stock.exception.ProductNotRegisteredException;
+import br.com.hadryan.stock.exception.StockNotRegisteredException;
 import br.com.hadryan.stock.model.Stock;
 import br.com.hadryan.stock.model.StockOrder;
 import br.com.hadryan.stock.model.enums.OrderType;
@@ -26,28 +28,32 @@ public class StockOrderConsumer {
 
     @RabbitListener(queues = "${rabbitmq.stock-order.queue}")
     public void createSaleStockOrder(StockOrderDTO stockOrderDTO) {
-        var stockOrder = new StockOrder();
-        var stockFound = stockRepository.findByProductId(stockOrderDTO.getProductId())
-                .orElseThrow(() -> new RuntimeException("Stock not found"));
-        if (checkAvailableStock(stockOrderDTO)) {
-            log.info("Saving stock order with product id: {}", stockOrderDTO.getProductId());
-            stockOrder.setOrderType(OrderType.SALE);
-            stockOrder.setStockId(stockFound.getId());
-            stockOrder.setQuantity(stockOrderDTO.getQuantity());
-            stockOrder.setProductId(stockOrderDTO.getProductId());
-            stockOrder.setCreatedAt(LocalDateTime.now());
-            stockOrderRepository.save(stockOrder);
-            updateStock(stockFound, stockOrderDTO);
-        } else {
-            log.error("Stock not available for product id: {}", stockOrderDTO.getProductId());
+        try{
+            if (checkAvailableStock(stockOrderDTO)) {
+                var stockOrder = new StockOrder();
+                var stockFound = stockRepository.findByProductId(stockOrderDTO.getProductId());
+                log.info("Saving stock order with product id: {}", stockOrderDTO.getProductId());
+                stockOrder.setOrderType(OrderType.SALE);
+                stockOrder.setStockId(stockFound.get().getId());
+                stockOrder.setQuantity(stockOrderDTO.getQuantity());
+                stockOrder.setProductId(stockOrderDTO.getProductId());
+                stockOrder.setCreatedAt(LocalDateTime.now());
+                stockOrderRepository.save(stockOrder);
+                updateStock(stockFound.get(), stockOrderDTO);
+            } else {
+                log.warn("Stock not available for product id: {}", stockOrderDTO.getProductId());
+            }
+        } catch (StockNotRegisteredException | ProductNotRegisteredException e) {
+            log.error("Error creating stock order: {}", e.getMessage());
         }
     }
 
     private boolean checkAvailableStock(StockOrderDTO stockOrderDTO) {
+        log.info("Checking available stock for product id: {}", stockOrderDTO.getProductId());
         productRepository.findById(stockOrderDTO.getProductId())
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+                .orElseThrow(ProductNotRegisteredException::new);
         var stock = stockRepository.findByProductId(stockOrderDTO.getProductId())
-                .orElseThrow(() -> new RuntimeException("Stock not found"));
+                .orElseThrow(StockNotRegisteredException::new);
         return stock.getQuantity() >= stockOrderDTO.getQuantity();
     }
 
